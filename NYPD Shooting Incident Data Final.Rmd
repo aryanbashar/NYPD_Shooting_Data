@@ -1,0 +1,191 @@
+---
+title: "NYPD Shooting Incident Data (Historic)"
+author: "A. Bashar"
+date: "2022-07-13"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Introduction ##
+
+The data we will be looking at is the NYPD Shooting Incident Data which lists every shooting incident that occurred in NYC from 2006 to 2021. We will import, clean, transform, visualize, analyze, and model the data.  
+
+## Load Required Libraries ##
+
+Install the packages of tidyverse and lubridate for this project.
+```{r library, echo=TRUE, warning=FALSE}
+ 
+library(tidyverse)
+library(lubridate)
+```
+
+## Read in the Data ##
+
+```{r csv file, echo=TRUE}
+url_nypd <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+shooting_data <- read.csv(url_nypd)
+```
+
+## Summary and Internal Structure of Data ##
+
+```{r shooting_data, echo=TRUE}
+summary(shooting_data)
+
+str(shooting_data)
+
+head(shooting_data)
+```
+
+There are 19 categories in our data. By looking at the head of our data, we can already see that the perpetrator age group, perpetrator sex, and perpetrator race for example have empty data points. If these sections are used, then we will have to make a note of it. 
+
+## Custom Size of Future Plots ##
+
+```{r size of plots, echo=TRUE}
+knitr::opts_chunk$set(fig.width=10)
+```
+
+This will make sure that our future graphs will be an appropriate size to be viewed. 
+
+## Total Number of Reported Shootings in New York City by Year (From 2006 to 2021) ##
+
+```{r Number of Reported Shootings per Year, echo=TRUE}
+ shooting_data %>%
+     select(c(1,2)) %>%
+     mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+     mutate(occur_year = format(as.Date(.$OCCUR_DATE),format ="%Y"))%>%
+     group_by(occur_year)%>%
+  
+  summarise(n=n()) %>%
+  ggplot(aes(x = occur_year,y=n))+
+  geom_line(group=1, color="blue")+
+  geom_point()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ggtitle("NYC Shooting Incidents Numbers (2006-2021)") +
+  labs(y="Reported Shootings", x="Year")
+```
+
+Overall shooting incidents had been trending downwards since 2006 and hitting a low in 2018. The shootings for 2020 and 2021 then jumped to some of the highest levels. Let us adjust the graph to see how this same trend would look like when separated by each borough in New York.
+
+## Number of Shooting Incidents by Location each Year (from 2006 to 2021) ##
+
+```{r Number of Shooting Incidents by Location each Year, message=FALSE, echo=TRUE}
+shooting_data %>%
+  select(c(1,2,4,10,17,18)) %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  mutate(occur_year = format(as.Date(.$OCCUR_DATE),format="%Y")) %>%
+  group_by(occur_year,BORO) %>%  
+  summarise(n=n()) %>%
+  
+  ggplot(aes(x=occur_year, y=n, group=BORO)) +
+  geom_point(aes(color=BORO)) +
+  geom_line(aes(color=BORO)) +
+  labs(x = "Year", y = "Number of Shooting Incidents", color = "Borough") +
+  ggtitle("Shooting Incidents by Location (From 2006 to 2021)") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Brooklyn had generally been the borough in New York City with the highest number of shooting incidents until 2021 where Bronx took over. Staten Island had consistently the lowest number of shooting incidents and stayed in a relatively close range from 2006 to 2021. Queens had generally a slightly higher amount of shooting incidents than Manhattan except for 2021 where Manhattan had taken over. Let us check to see for the victims' race over the same timeline.   
+
+## Victims' Race Over the Years (From 2006 to 2021) ##
+
+```{r Victim Race Over the Years, message=FALSE, echo=TRUE}
+shooting_data %>%
+  select(c(1,2,14)) %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  mutate(occur_year = format(as.Date(.$OCCUR_DATE),format="%Y")) %>%
+  group_by(occur_year,VIC_RACE) %>%  
+  summarise(n=n()) %>%
+  
+ggplot(aes(x = occur_year, y = n, fill = VIC_RACE), color = VIC_RACE) +
+  geom_bar(stat = 'identity', position = 'dodge') +
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90), 
+                          plot.title = element_text(hjust = 0.5)) +
+  labs(title = "New York Shooting Incident Victims' Race Report (From 2006 to 2021)", 
+                          y = "Cases", x = "Year", fill = "Victims' Race")
+```
+
+From our visualization we can see that black individuals were most often the victim of shooting incidents in New York City from 2006 to 2021. There is a large drop off to the next group which has usually been White Hispanics. 
+
+## Victims' Sex Over the Years (From 2006 to 2021) ##
+
+```{r Victim Sex Over the Years, echo=TRUE, message=FALSE}
+shooting_data %>%
+    select(c(1,2,13)) %>%
+    mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+    mutate(occur_year = format(as.Date(.$OCCUR_DATE),format="%Y")) %>%
+    group_by(occur_year,VIC_SEX) %>%  
+    summarise(n=n()) %>%
+    
+    ggplot(aes(x = occur_year, y = n, fill = VIC_SEX), color = VIC_SEX) +
+    scale_fill_manual(name="Victims' Sex",labels=c("Female", "Male", "Unknown"), 
+                      values=c("firebrick4", "dodgerblue4", "#E69F00")) +
+    geom_bar(stat = 'identity', position = 'dodge') +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 90), 
+          plot.title = element_text(hjust = 0.5)) +
+    labs(title = "New York Shooting Incident Victims' Sex Report (From 2006 to 2021)", 
+         y = "Cases", x = "Year")
+```
+
+Male victims are much more common over female victims through 2006 to 2021. Let us see if female victims are correlated with an increase in male victims.   
+
+## Modelling of our Data for Correlation between Male Victims and Female Victims ##
+
+```{r linear model, echo=TRUE, error=FALSE, message=FALSE}
+
+knitr::opts_chunk$set(fig.width=7)
+
+victim_sex <- shooting_data %>%
+     group_by(OCCUR_DATE, VIC_SEX) %>% 
+     summarise(n = n()) %>% 
+     spread(key = VIC_SEX, value = n) %>% 
+     mutate(Female = replace_na(F, 0),
+            Male = replace_na(M, 0)) %>% 
+     ungroup()
+``` 
+
+```{r summary, echo=TRUE}     
+model <- lm(Male ~ Female, data = victim_sex)
+
+summary(model)
+```
+
+The Multiple R-squared is very small at 8% which means our model has a low chance for the explanatory variables to predict the value of the response variable. The p_value is a very small number close to 0, but that enough will not help. Let us turn our prediction into a plot. 
+
+```{r model plot, echo=TRUE}
+victim_sex %>% 
+  mutate(pred = predict(model)) %>% 
+  ggplot() +
+  geom_point(aes(x = Female, y = Male), color = '#56B4E9') +
+  geom_point(aes(x = Female, y = pred), color = '#D55E00')
+```
+
+The orange points is the prediction line and the light blue points is our data. There does not look to be strong correlation between female and male victims. Let us look further into the data. 
+
+```{r Our Model, echo=TRUE} 
+res <- resid(model)
+
+plot(fitted(model), res)
+```
+
+This residual plot is useful for testing homoscedasticity. Since most of our points are not evenly distributed around the value zero, then we can assume that homoscedastricity has been violated.
+
+```{r qq plot, echo=TRUE}
+qqnorm(res)
+```
+
+Our model displays skewness which can indicate a sample from a population and may not have a relation between the values. There are more extreme values than would be expected from a normal distribution. 
+
+## Bias in the Data ##
+
+- One potential bias is that this is only the reported shooting incidents and there is no estimate on non-reported incidents.
+- Our graphs have shown that black men in particular are most commonly the victims of shooting incidents and that certain boroughs will have more reported shootings. Due to this, the NYPD may patrol areas with larger populations of black residents that may show bias in the data.  
+- Another bias in my own analysis may have been with sample sizes. There is a much larger amount of male victims than there are female victims and that would make correlations with the two to be difficult. There has to be other reasons as to why males are largely the victims in NYC shooting incidents.
+
+## Conclusion ## 
+
+We looked at the data from every shooting incident that occurred in NYC from 2006 to 2021. We were able to create a few visualizations that gave us a glimpse into the trends seen in the shooting incidents. Our model was unable to find a strong correlation between male and female shooting victims.   
+
+Data link: https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic
+
